@@ -8,8 +8,9 @@ on:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+  AWS_ACCOUNT_ID: 941377151341
+  ECR_REPOSITORY: fiap-mecanica-api
+  EKS_CLUSTER_NAME: fiap-mecanica-prod
 
 jobs:
   test:
@@ -94,7 +95,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        run: echo "image=${ECR_REPOSITORY}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+        run: echo "image=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v5
