@@ -5,7 +5,6 @@ tracer.init({
   env: process.env.DD_ENV || process.env.NODE_ENV || 'development',
   version: process.env.DD_VERSION || '1.0.0',
   logInjection: true,
-  analytics: true,
   runtimeMetrics: true,
 });
 
