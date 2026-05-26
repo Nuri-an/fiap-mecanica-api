@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fiap-mecanica-config
+  namespace: fiap-mecanica
+data:
+  NODE_ENV: "production"

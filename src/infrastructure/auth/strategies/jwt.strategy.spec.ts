@@ -29,11 +29,13 @@ describe('JwtStrategy', () => {
   });
 
   describe('validate', () => {
-    it('should return user payload', async () => {
+    it('should return normalized user payload', async () => {
       const payload = {
         sub: 'user-id',
         email: 'test@example.com',
         role: 'USER',
+        cpf: '12345678901',
+        name: 'John Doe',
       };
 
       const result = await strategy.validate(payload);
@@ -42,6 +44,8 @@ describe('JwtStrategy', () => {
         userId: 'user-id',
         email: 'test@example.com',
         role: 'USER',
+        cpf: '12345678901',
+        name: 'John Doe',
       });
     });
   });
