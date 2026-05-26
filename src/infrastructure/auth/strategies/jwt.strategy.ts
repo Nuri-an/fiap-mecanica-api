@@ -1,33 +1,50 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
+import { Strategy, ExtractJwt } from 'passport-jwt';
+import { getLogger } from '@infrastructure/observability/logger';
 
 interface JwtPayload {
   sub: string;
-  email?: string;
-  role?: string;
-  cpf?: string;
-  name?: string;
+  name: string;
+  email: string;
+  iss: string;
+  aud: string;
+  iat: number;
+  exp: number;
 }
+
+const logger = getLogger();
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private configService: ConfigService) {
+  constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKey: process.env.JWT_SECRET || 'your-secret-key',
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
+      issuer: process.env.JWT_ISSUER ?? 'fiap-mecanica-auth',
+      audience: process.env.JWT_AUDIENCE ?? 'fiap-mecanica-api',
     });
   }
 
-  async validate(payload: JwtPayload) {
+  validate(payload: JwtPayload): { customerId: string; customerEmail: string; customerName: string } {
+    if (!payload.sub) {
+      logger.warn({ payload }, 'Invalid JWT payload - missing sub');
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    logger.info(
+      {
+        customerId: payload.sub,
+        email: payload.email,
+      },
+      'JWT token validated'
+    );
+
     return {
-      userId: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      cpf: payload.cpf,
-      name: payload.name,
+      customerId: payload.sub,
+      customerEmail: payload.email,
+      customerName: payload.name,
     };
   }
 }
