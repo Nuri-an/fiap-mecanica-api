@@ -1,3 +1,14 @@
+import tracer from 'dd-trace';
+
+tracer.init({
+  service: process.env.DD_SERVICE || 'fiap-mecanica-api',
+  env: process.env.DD_ENV || process.env.NODE_ENV || 'development',
+  version: process.env.DD_VERSION || '1.0.0',
+  logInjection: true,
+  analytics: true,
+  runtimeMetrics: true,
+});
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

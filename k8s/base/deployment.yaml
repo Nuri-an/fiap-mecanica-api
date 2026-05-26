@@ -26,6 +26,23 @@ spec:
                 name: fiap-mecanica-config
             - secretRef:
                 name: fiap-mecanica-secrets
+          env:
+            - name: DD_SERVICE
+              value: "fiap-mecanica-api"
+            - name: DD_ENV
+              value: "production"
+            - name: DD_VERSION
+              value: "1.0.0"
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_AGENT_PORT
+              value: "8126"
+            - name: DD_TRACE_SAMPLE_RATE
+              value: "1"
+            - name: DD_LOGS_INJECTION
+              value: "true"
           resources:
             requests:
               memory: "256Mi"
