@@ -1,10 +1,15 @@
-name: CI/CD Pipeline
+name: CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [develop, main]
   pull_request:
     branches: [main]
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
 
 jobs:
   test:
@@ -61,91 +66,86 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
-  build-image:
-    name: Build Docker Image
+  build-and-push:
+    name: Build & Push Image
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push'
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Build Docker image
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata
+        id: meta
+        run: echo "image=${ECR_REPOSITORY}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: false
-          tags: fiap-mecanica:latest
-          outputs: type=docker,dest=/tmp/fiap-mecanica.tar
-
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: /tmp/fiap-mecanica.tar
-          retention-days: 1
+          push: true
+          tags: |
+            ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ env.ECR_REPOSITORY }}:${{ github.ref_name }}
 
   deploy:
-    name: Deploy to Kind
-    needs: build-image
+    name: Deploy to EKS
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build-and-push
+    if: github.event_name == 'push'
+    permissions:
+      id-token: write
+      contents: read
+
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: docker-image
-          path: /tmp
-
-      - name: Install Kind
-        run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.29.2'
 
-      - name: Create Kind cluster
+      - name: Install kustomize
         run: |
-          cat <<EOF | kind create cluster --name fiap-mecanica-cluster --config=-
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          nodes:
-          - role: control-plane
-            extraPortMappings:
-            - containerPort: 30000
-              hostPort: 30000
-              protocol: TCP
-          - role: worker
-          EOF
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v5.4.2/kustomize_v5.4.2_linux_amd64.tar.gz" \
+            | tar -xz
+          sudo mv kustomize /usr/local/bin/kustomize
 
-      - name: Load Docker image into Kind
+      - name: Update kubeconfig
         run: |
-          docker load -i /tmp/fiap-mecanica.tar
-          kind load docker-image fiap-mecanica:latest --name fiap-mecanica-cluster
+          aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${AWS_REGION}"
 
-      - name: Apply Kubernetes manifests
-        run: kubectl apply -k k8s/
-
-      - name: Wait for PostgreSQL rollout
-        run: kubectl rollout status deployment/postgres -n fiap-mecanica --timeout=120s
-
-      - name: Wait for application rollout
-        run: kubectl rollout status deployment/fiap-mecanica-app -n fiap-mecanica --timeout=180s
-
-      - name: Verify deployment
+      - name: Deploy manifests
+        env:
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
+          OVERLAY: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
         run: |
-          kubectl get pods -n fiap-mecanica
-          kubectl get svc -n fiap-mecanica
-          kubectl get hpa -n fiap-mecanica
+          cd k8s/overlays/${OVERLAY}
+          kustomize edit set image fiap-mecanica-api=${IMAGE}
+          kubectl apply -k .
+          kubectl rollout status deployment/fiap-mecanica-api -n fiap-mecanica --timeout=300s

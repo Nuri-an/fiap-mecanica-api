@@ -4,13 +4,12 @@ metadata:
   name: fiap-mecanica-service
   namespace: fiap-mecanica
   labels:
-    app: fiap-mecanica-app
+    app: fiap-mecanica-api
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
-    app: fiap-mecanica-app
+    app: fiap-mecanica-api
   ports:
-    - port: 3000
+    - name: http
+      port: 80
       targetPort: 3000
-      nodePort: 30000
-      protocol: TCP
