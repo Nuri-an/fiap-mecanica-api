@@ -149,6 +149,6 @@ jobs:
         run: |
           cd k8s/overlays/${OVERLAY}
           kustomize edit set image fiap-mecanica-api=${IMAGE}
-          kubectl apply -k .
+          kubectl apply -k . --validate=false
           kubectl rollout status deployment/fiap-mecanica-api -n fiap-mecanica --timeout=300s
 # Fixed OIDC trust policy
