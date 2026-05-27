@@ -204,6 +204,14 @@ npm run test:e2e
 | fiap-mecanica-db          | Managed database infrastructure (Terraform) |
 | fiap-mecanica-auth-lambda | Serverless authentication function          |
 
+## Video Demonstration
+
+https://youtu.be/pn4f-kdLqzQ
+
+## API Collection
+
+The OpenAPI/Swagger collection is available at [docs/api-collection.json](docs/api-collection.json)
+
 ## Authors
 
 FIAP Tech Challenge — Software Architecture Postgraduate Program
